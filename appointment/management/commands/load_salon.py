@@ -12,7 +12,7 @@ class Command(BaseCommand):
     help = "Load salon configuration from data/salon.json"
 
     def handle(self, *args, **options):
-        salon_file = settings.BASE_DIR / "data" / "salon.json"
+        salon_file = settings.BASE_DIR / "demo_data" / "salon.json"
 
         with salon_file.open("r", encoding="utf-8") as file:
             data = json.load(file)

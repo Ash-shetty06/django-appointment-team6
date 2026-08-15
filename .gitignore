@@ -173,6 +173,12 @@ cython_debug/
 .DS_Store
 **/.DS_Store/**
 **/migrations/**
+
+# keep the appointment schema needed for the standalone teaching system
+!appointment/migrations/
+!appointment/migrations/__init__.py
+!appointment/migrations/0001_initial.py
+
 /services/
 data
 

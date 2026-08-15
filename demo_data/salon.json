@@ -1,0 +1,89 @@
+{
+  "salon": {
+    "name": "Atria Salon",
+    "tagline": "Style that fits you",
+    "primary_color": "#7A5C61",
+    "secondary_color": "#F4ECE8",
+    "accent_color": "#2F6F64",
+    "demo_staff_password": "salon123",
+    "slot_duration_minutes": 30,
+    "opening_time": "10:00",
+    "closing_time": "19:00"
+  },
+
+  "manager": {
+  "username": "salonadmin",
+  "first_name": "Salon",
+  "last_name": "Manager",
+  "email": "manager@example.com",
+  "password": "admin123"
+  },
+  
+  "services": [
+    {
+      "id": 101,
+      "name": "Men's Haircut",
+      "description": "Classic haircut and styling",
+      "duration_minutes": 30,
+      "price": 400,
+      "currency": "INR"
+    },
+    {
+      "id": 102,
+      "name": "Women's Haircut",
+      "description": "Haircut, shaping and styling",
+      "duration_minutes": 45,
+      "price": 700,
+      "currency": "INR"
+    },
+    {
+      "id": 103,
+      "name": "Men's Hair Colouring",
+      "description": "Full hair colour service",
+      "duration_minutes": 60,
+      "price": 900,
+      "currency": "INR"
+    },
+    {
+      "id": 104,
+      "name": "Women's Hair Colouring",
+      "description": "Full hair colour and finishing",
+      "duration_minutes": 90,
+      "price": 1500,
+      "currency": "INR"
+    }
+  ],
+
+  "staff": [
+    {
+      "username": "riya",
+      "first_name": "Riya",
+      "last_name": "Sen",
+      "email": "riya@example.com",
+      "services": [101, 102, 104],
+      "working_days": [1, 2, 3, 4, 5, 6],
+      "start_time": "10:00",
+      "end_time": "18:00"
+    },
+    {
+      "username": "arjun",
+      "first_name": "Arjun",
+      "last_name": "Mehta",
+      "email": "arjun@example.com",
+      "services": [101, 103],
+      "working_days": [1, 2, 3, 4, 5, 6],
+      "start_time": "11:00",
+      "end_time": "19:00"
+    },
+    {
+      "username": "maya",
+      "first_name": "Maya",
+      "last_name": "Kapoor",
+      "email": "maya@example.com",
+      "services": [102, 103, 104],
+      "working_days": [2, 3, 4, 5, 6],
+      "start_time": "10:00",
+      "end_time": "17:00"
+    }
+  ]
+}
