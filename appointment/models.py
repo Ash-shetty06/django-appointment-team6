@@ -438,9 +438,27 @@ class AppointmentRequest(models.Model):
             if self.start_time == self.end_time:
                 raise ValidationError(_("Start time and end time cannot be the same"))
 
+        self.validate_no_overlap()
+
         # Ensure the date is not in the past:
         if self.date and self.date < datetime.date.today():
             raise ValidationError(_("Date cannot be in the past"))
+
+    def validate_no_overlap(self):
+        if self.staff_member_id and self.date and self.start_time and self.end_time:
+            from appointment.utils.db_helpers import get_appointments_for_date_and_time
+
+            overlapping_appointments = get_appointments_for_date_and_time(
+                self.date,
+                self.start_time,
+                self.end_time,
+                self.staff_member,
+                strict_overlap=True,
+            )
+            if self.pk:
+                overlapping_appointments = overlapping_appointments.exclude(appointment_request_id=self.pk)
+            if overlapping_appointments.exists():
+                raise ValidationError(_("This staff member already has an overlapping appointment."))
 
     def save(self, *args, **kwargs):
         # if no id_request is provided, generate one

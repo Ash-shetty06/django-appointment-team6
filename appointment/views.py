@@ -11,6 +11,7 @@ from datetime import date, timedelta
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.forms import SetPasswordForm
+from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
@@ -317,7 +318,13 @@ def create_appointment(request, appointment_request_obj, client_data, appointmen
     :param appointment_data: The appointment data.
     :return: The redirect response.
     """
-    appointment = create_and_save_appointment(appointment_request_obj, client_data, appointment_data, request)
+    try:
+        appointment = create_and_save_appointment(appointment_request_obj, client_data, appointment_data, request)
+    except ValidationError as error:
+        messages.error(request, error.messages[0])
+        return redirect('appointment:appointment_client_information',
+                        appointment_request_id=appointment_request_obj.id,
+                        id_request=appointment_request_obj.id_request)
     notify_admin_about_appointment(appointment, appointment.client.first_name)
     return redirect_to_payment_or_thank_you_page(appointment)
 

@@ -1044,6 +1044,19 @@ class AppointmentClientInformationTest(BaseTest):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'appointment/appointment_client_information.html')
 
+    def test_stale_booking_is_rejected_after_slot_is_taken(self):
+        self.create_appt_for_sm1()
+        stale_booking_data = {
+            **self.valid_form_data,
+            'phone_0': 'US',
+            'phone_1': '2392340543',
+        }
+        response = self.client.post(self.url, stale_booking_data)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, self.url)
+        self.assertFalse(Appointment.objects.filter(appointment_request=self.ar).exists())
+
     def test_already_submitted_session(self):
         """Test the view when the appointment has already been submitted."""
         session = self.client.session

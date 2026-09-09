@@ -15,6 +15,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.exceptions import FieldDoesNotExist
+from django.db import transaction
 from django.urls import reverse
 from django.utils import timezone
 
@@ -117,12 +118,18 @@ def create_and_save_appointment(ar, client_data: dict, appointment_data: dict, r
     :param request: The request object.
     :return: The newly created appointment.
     """
-    user = get_user_by_email(client_data['email'])
-    appointment = Appointment.objects.create(
-            client=user, appointment_request=ar,
-            **appointment_data
-    )
-    appointment.save()
+    with transaction.atomic():
+        if ar.staff_member_id:
+            from appointment.models import StaffMember
+
+            StaffMember.objects.select_for_update().get(pk=ar.staff_member_id)
+        ar.full_clean()
+        user = get_user_by_email(client_data['email'])
+        appointment = Appointment.objects.create(
+                client=user, appointment_request=ar,
+                **appointment_data
+        )
+        appointment.save()
     logger.info(f"New appointment created: {appointment.to_dict()}")
     if appointment.want_reminder:
         logger.info(f"User wants a reminder for appointment {appointment.id}, scheduling it...")
@@ -508,7 +515,7 @@ def get_appointment_slot_duration():
     return APPOINTMENT_SLOT_DURATION
 
 
-def get_appointments_for_date_and_time(date, start_time, end_time, staff_member):
+def get_appointments_for_date_and_time(date, start_time, end_time, staff_member, strict_overlap=False):
     """Returns all appointments that overlap with the specified date and time range.
 
     :param date: The date to filter appointments on.
@@ -518,12 +525,21 @@ def get_appointments_for_date_and_time(date, start_time, end_time, staff_member)
 
     :return: QuerySet, all appointments that overlap with the specified date and time range
     """
-    return Appointment.objects.filter(
-            appointment_request__date=date,
-            appointment_request__start_time__lte=end_time,
-            appointment_request__end_time__gte=start_time,
-            appointment_request__staff_member=staff_member
-    )
+    filters = {
+        'appointment_request__date': date,
+        'appointment_request__staff_member': staff_member,
+    }
+    if strict_overlap:
+        filters.update({
+            'appointment_request__start_time__lt': end_time,
+            'appointment_request__end_time__gt': start_time,
+        })
+    else:
+        filters.update({
+            'appointment_request__start_time__lte': end_time,
+            'appointment_request__end_time__gte': start_time,
+        })
+    return Appointment.objects.filter(**filters)
 
 
 def get_config():

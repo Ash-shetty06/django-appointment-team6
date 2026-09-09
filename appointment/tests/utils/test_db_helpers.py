@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, PropertyMock, patch
 from django.apps import apps
 from django.conf import settings
 from django.core.cache import cache
-from django.core.exceptions import FieldDoesNotExist
+from django.core.exceptions import FieldDoesNotExist, ValidationError
 from django.test import TestCase, override_settings
 from django.test.client import RequestFactory
 from django.urls import reverse
@@ -243,6 +243,20 @@ class TestCreateAndSaveAppointment(BaseTest, TestCase):
         self.assertEqual(appointment.client.email, client_data['email'])
         mock_logger_warning.assert_called_with(
                 f"Email reminder requested for appointment {appointment.id}, but django-q is not available.")
+
+    def test_create_and_save_appointment_rejects_stale_overlapping_request(self):
+        existing_request = self.create_appt_request_for_sm1()
+        self.create_appt_for_sm1(appointment_request=existing_request)
+        stale_request = self.create_appt_request_for_sm1(start_time=datetime.time(9, 30),
+                                                         end_time=datetime.time(10, 30))
+
+        with self.assertRaises(ValidationError):
+            create_and_save_appointment(
+                stale_request,
+                {'email': 'stale-booking@django-appointment.com'},
+                {'phone': '123456789', 'address': '', 'want_reminder': False, 'additional_info': ''},
+                self.request,
+            )
 
 
 def get_mock_reverse(url_name, **kwargs):

@@ -1,9 +1,13 @@
 from copy import deepcopy
 from datetime import date, datetime, time, timedelta
 
+from django.contrib import admin
 from django.core.exceptions import ValidationError
+from django.test import RequestFactory
 from django.utils import timezone
 
+from appointment.admin import AppointmentRequestAdmin
+from appointment.models import AppointmentRequest
 from appointment.tests.base.base_test import BaseTest
 
 
@@ -148,6 +152,61 @@ class AppointmentRequestAttributeValidation(BaseTest):
         with self.assertRaises(ValidationError):
             self.create_appointment_request_(service, self.staff_member1, start_time=time(9, 0),
                                              end_time=time(13, 0))
+
+    def test_overlapping_request_for_same_staff_is_rejected(self):
+        self.create_appt_for_sm1()
+        request = self.create_appointment_request_(self.service1, self.staff_member1,
+                                                   start_time=time(9, 30), end_time=time(10, 30))
+        with self.assertRaises(ValidationError):
+            request.full_clean()
+
+    def test_overlapping_request_for_different_staff_is_allowed(self):
+        self.create_appt_for_sm1()
+        request = self.create_appointment_request_(self.service2, self.staff_member2,
+                                                   start_time=time(9, 30), end_time=time(10, 30))
+        request.full_clean()
+
+    def test_overlapping_request_on_different_date_is_allowed(self):
+        self.create_appt_for_sm1()
+        request = self.create_appointment_request_(self.service1, self.staff_member1,
+                                                   date_=date.today() + timedelta(days=1),
+                                                   start_time=time(9, 30), end_time=time(10, 30))
+        request.full_clean()
+
+    def test_adjacent_request_for_same_staff_is_allowed(self):
+        self.create_appt_for_sm1()
+        request = self.create_appointment_request_(self.service1, self.staff_member1,
+                                                   start_time=time(10, 0), end_time=time(11, 0))
+        request.full_clean()
+
+    def test_request_without_staff_member_is_allowed(self):
+        request = self.create_appointment_request_(self.service1, None)
+        request.full_clean(exclude=('staff_member',))
+
+    def test_editing_request_into_overlap_is_rejected(self):
+        self.create_appt_for_sm1()
+        request = self.create_appointment_request_(self.service1, self.staff_member1,
+                                                   start_time=time(11, 0), end_time=time(12, 0))
+        request.start_time = time(9, 30)
+        request.end_time = time(10, 30)
+        with self.assertRaises(ValidationError):
+            request.full_clean()
+
+    def test_admin_request_form_rejects_overlap(self):
+        self.create_appt_for_sm1()
+        request = RequestFactory().get('/')
+        request.user = self.users['superuser']
+        form_class = AppointmentRequestAdmin(AppointmentRequest, admin.site).get_form(request)
+        form = form_class(data={
+            'date': date.today(),
+            'start_time': time(9, 30),
+            'end_time': time(10, 30),
+            'service': self.service1.pk,
+            'staff_member': self.staff_member1.pk,
+            'payment_type': 'full',
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn('overlapping appointment', str(form.errors).lower())
 
     def test_invalid_payment_type_raises_error(self):
         """Payment type must be either 'full' or 'down'"""
