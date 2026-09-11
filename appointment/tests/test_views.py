@@ -28,6 +28,7 @@ from appointment.models import (
 )
 from appointment.tests.base.base_test import BaseTest
 from appointment.utils.db_helpers import Service, WorkingHours, create_user_with_username
+from appointment.utils.db_helpers import get_appointment_cancellation_url, get_weekday_num_from_date
 from appointment.utils.error_codes import ErrorCode
 from appointment.views import (
     create_appointment, redirect_to_payment_or_thank_you_page, verify_user_and_login
@@ -828,6 +829,106 @@ class ViewsTestCase(BaseTest):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertIn(appointment.get_service_name(), str(response.content))
+        self.assertContains(response, 'Cancel Appointment')
+
+
+class CustomerAppointmentCancellationTests(BaseTest):
+    def create_future_appointment(self, hours_from_now):
+        current_time = datetime.datetime.now(datetime.timezone.utc)
+        appointment_time = current_time + timedelta(hours=hours_from_now)
+        appointment_request = self.create_appt_request_for_sm1(
+            date_=appointment_time.date(), start_time=appointment_time.time().replace(microsecond=0),
+            end_time=(appointment_time + timedelta(hours=1)).time().replace(microsecond=0)
+        )
+        return self.create_appt_for_sm1(appointment_request=appointment_request)
+
+    def cancellation_url(self, appointment):
+        request = RequestFactory().get('/')
+        return get_appointment_cancellation_url(appointment, request)
+
+    @patch('appointment.views.timezone', wraps=timezone)
+    def test_customer_can_access_cancellation_link(self, mock_timezone):
+        mock_timezone.now.return_value = datetime.datetime.now(datetime.timezone.utc)
+        appointment = self.create_future_appointment(48)
+
+        response = self.client.get(self.cancellation_url(appointment))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Cancel Appointment')
+        self.assertContains(response, appointment.get_service_name())
+
+    @patch('appointment.views.timezone', wraps=timezone)
+    def test_cancellation_exactly_24_hours_away_deletes_appointment(self, mock_timezone):
+        current_time = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0)
+        mock_timezone.now.return_value = current_time
+        appointment = self.create_future_appointment(24)
+        appointment_id = appointment.id
+        appointment_request_id = appointment.appointment_request.id
+
+        response = self.client.post(self.cancellation_url(appointment))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Appointment cancelled successfully')
+        self.assertFalse(Appointment.objects.filter(id=appointment_id).exists())
+        self.assertFalse(AppointmentRequest.objects.filter(id=appointment_request_id).exists())
+
+    @patch('appointment.views.timezone', wraps=timezone)
+    def test_cancellation_more_than_24_hours_away_deletes_appointment(self, mock_timezone):
+        mock_timezone.now.return_value = datetime.datetime.now(datetime.timezone.utc)
+        appointment = self.create_future_appointment(48)
+
+        response = self.client.post(self.cancellation_url(appointment))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Appointment.objects.filter(id=appointment.id).exists())
+
+    @patch('appointment.views.timezone', wraps=timezone)
+    def test_cancellation_less_than_24_hours_away_is_rejected(self, mock_timezone):
+        mock_timezone.now.return_value = datetime.datetime.now(datetime.timezone.utc)
+        appointment = self.create_future_appointment(23)
+
+        response = self.client.post(self.cancellation_url(appointment))
+
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(response, 'cannot be cancelled', status_code=400)
+        self.assertTrue(Appointment.objects.filter(id=appointment.id).exists())
+
+    def test_invalid_cancellation_token_is_rejected(self):
+        response = self.client.get(reverse('appointment:cancel_appointment', args=['invalid-token']))
+
+        self.assertEqual(response.status_code, 404)
+        self.assertContains(response, 'invalid', status_code=404)
+
+    @patch('appointment.views.timezone', wraps=timezone)
+    def test_cancelled_appointment_no_longer_blocks_slot(self, mock_timezone):
+        current_time = datetime.datetime.now(datetime.timezone.utc)
+        mock_timezone.now.return_value = current_time
+        appointment_time = current_time + timedelta(days=2)
+        project_weekday = get_weekday_num_from_date(appointment_time.date())
+        appointment_request = self.create_appt_request_for_sm1(
+            date_=appointment_time.date(), start_time=time(9, 0), end_time=time(10, 0)
+        )
+        appointment = self.create_appt_for_sm1(appointment_request=appointment_request)
+        WorkingHours.objects.create(
+            staff_member=self.staff_member1, day_of_week=project_weekday,
+            start_time=time(9, 0), end_time=time(11, 0)
+        )
+
+        from appointment.services import get_available_slots_for_staff
+
+        self.assertNotIn(
+            time(9, 0),
+            get_available_slots_for_staff(
+                appointment_time.date(), self.staff_member1, project_weekday, self.service1
+            )
+        )
+        self.client.post(self.cancellation_url(appointment))
+        self.assertIn(
+            datetime.datetime.combine(appointment_time.date(), time(9, 0)),
+            get_available_slots_for_staff(
+                appointment_time.date(), self.staff_member1, project_weekday, self.service1
+            ),
+        )
 
 
 class AddStaffMemberInfoTestCase(ViewsTestCase):

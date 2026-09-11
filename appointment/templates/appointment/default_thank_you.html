@@ -22,6 +22,7 @@
                 <li>{% trans 'Appointment Time' %}: {{ appointment.get_start_time }}</li>
                 <li>{% trans 'Duration' %}: {{ appointment.get_service_duration }}</li>
             </ul>
+            <p><a href="{{ cancellation_link }}">{% trans "Cancel Appointment" %}</a></p>
             {% if messages %}
                 {% for message in messages %}
                     <div class="alert alert-dismissible {% if message.tags %}alert-{% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}danger{% else %}{{ message.tags }}{% endif %}{% endif %}"

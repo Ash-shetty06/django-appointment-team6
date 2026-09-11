@@ -17,6 +17,7 @@ from django.core.cache import cache
 from django.core.exceptions import FieldDoesNotExist
 from django.db import transaction
 from django.urls import reverse
+from django.core.signing import BadSignature, TimestampSigner
 from django.utils import timezone
 
 from appointment.logger_config import get_logger
@@ -27,6 +28,8 @@ from appointment.settings import (
 from appointment.utils.date_time import combine_date_and_time, get_weekday_num
 
 logger = get_logger(__name__)
+
+CANCELLATION_TOKEN_SALT = 'appointment-cancellation'
 
 # Check if django-q is installed in settings
 DJANGO_Q_AVAILABLE = 'django_q' in settings.INSTALLED_APPS
@@ -225,6 +228,22 @@ def cancel_existing_reminder(appointment_id_request):
         return
     task_name = f"reminder_{appointment_id_request}"
     Schedule.objects.filter(name=task_name).delete()
+
+
+def get_appointment_cancellation_url(appointment, request):
+    token = TimestampSigner(salt=CANCELLATION_TOKEN_SALT).sign(appointment.id_request)
+    relative_url = reverse('appointment:cancel_appointment', args=[token])
+    return get_absolute_url_(relative_url, request)
+
+
+def get_appointment_from_cancellation_token(token):
+    try:
+        appointment_id_request = TimestampSigner(salt=CANCELLATION_TOKEN_SALT).unsign(token)
+    except BadSignature:
+        return None
+    return Appointment.objects.select_related('appointment_request').filter(
+        id_request=appointment_id_request
+    ).first()
 
 
 def can_appointment_be_rescheduled(appointment_request):

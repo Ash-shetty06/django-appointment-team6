@@ -9,7 +9,8 @@ Since: 1.0.0
 from django.urls import include, path
 
 from appointment.views import (
-    appointment_client_information, appointment_request, appointment_request_submit, confirm_reschedule,
+     appointment_client_information, appointment_request, appointment_request_submit, cancel_appointment,
+     confirm_reschedule,
     default_thank_you, enter_verification_code, get_available_slots_ajax, get_next_available_date_ajax,
     get_non_working_days_ajax, prepare_reschedule_appointment, reschedule_appointment_submit, set_passwd
 )
@@ -105,6 +106,7 @@ urlpatterns = [
          name='prepare_reschedule_appointment'),
     path('appointment-reschedule-submit/', reschedule_appointment_submit, name='reschedule_appointment_submit'),
     path('confirm-reschedule/<str:id_request>/', confirm_reschedule, name='confirm_reschedule'),
+    path('appointment/<str:token>/cancel/', cancel_appointment, name='cancel_appointment'),
     path('client-info/<int:appointment_request_id>/<str:id_request>/', appointment_client_information,
          name='appointment_client_information'),
     path('verification-code/<int:appointment_request_id>/<str:id_request>/', enter_verification_code,

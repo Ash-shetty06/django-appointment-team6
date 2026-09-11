@@ -145,3 +145,19 @@ class SendRescheduleConfirmationEmailTests(BaseTest):
         self.assertIn('reschedule_date', call_kwargs['context'])
         self.assertIn('confirmation_link', call_kwargs['context'])
         self.assertEqual(call_kwargs['context']['confirmation_link'], "http://gateroomserver/confirmation_link")
+
+
+class SendThankYouEmailCancellationLinkTests(BaseTest):
+    @patch('appointment.utils.email_ops.get_appointment_cancellation_url', return_value='http://example.com/cancel')
+    @patch('appointment.utils.email_ops.send_email')
+    def test_send_thank_you_email_contains_cancellation_link(self, mock_send_email, mock_get_cancellation_url):
+        appointment = self.create_appt_for_sm1()
+        request = RequestFactory().get('/')
+
+        send_thank_you_email(
+            appointment.appointment_request, appointment.client, request, appointment.client.email
+        )
+
+        context = mock_send_email.call_args.kwargs['context']
+        self.assertEqual(context['cancellation_link'], 'http://example.com/cancel')
+        mock_get_cancellation_url.assert_called_once_with(appointment, request)

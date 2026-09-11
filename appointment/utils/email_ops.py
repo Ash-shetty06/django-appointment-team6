@@ -21,7 +21,8 @@ from appointment.logger_config import get_logger
 from appointment.models import Appointment, AppointmentRequest, EmailVerificationCode, PasswordResetToken
 from appointment.settings import APPOINTMENT_PAYMENT_URL
 from appointment.utils.date_time import convert_24_hour_time_to_12_hour_time
-from appointment.utils.db_helpers import get_absolute_url_, get_website_name, username_in_user_model
+from appointment.utils.db_helpers import (
+    get_absolute_url_, get_appointment_cancellation_url, get_website_name, username_in_user_model)
 from appointment.utils.ics_utils import generate_ics_file
 from appointment.utils.template_helpers import get_email_template
 
@@ -95,6 +96,7 @@ def send_thank_you_email(ar: AppointmentRequest, user, request, email: str, appo
         'activation_link': set_passwd_link,
         'main_title': _("Appointment successfully scheduled"),
         'reschedule_link': reschedule_link,
+        'cancellation_link': get_appointment_cancellation_url(appt, request),
     }
 
     # User must name their template 'thank_you.html' in their email directory

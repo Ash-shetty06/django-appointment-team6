@@ -34,8 +34,8 @@ from appointment.settings import check_q_cluster
 from appointment.utils.db_helpers import (
     can_appointment_be_rescheduled, check_day_off_for_staff, create_and_save_appointment, create_new_user,
     create_payment_info_and_get_url, get_non_working_days_for_staff, get_user_by_email, get_user_model,
-    get_website_name, get_weekday_num_from_date, is_working_day, staff_change_allowed_on_reschedule,
-    username_in_user_model
+    get_appointment_cancellation_url, get_appointment_from_cancellation_token, get_website_name,
+    get_weekday_num_from_date, is_working_day, staff_change_allowed_on_reschedule, username_in_user_model
 )
 from appointment.utils.email_ops import notify_admin_about_appointment, notify_admin_about_reschedule, \
     send_reschedule_confirmation_email, \
@@ -471,10 +471,42 @@ def default_thank_you(request, appointment_id):
                          account_details=account_details, request=request)
     extra_context = {
         'appointment': appointment,
+        'cancellation_link': get_appointment_cancellation_url(appointment, request),
     }
     context = get_generic_context_with_extra(request, extra_context, admin=False)
     thank_you_template = get_custom_template('thank_you_page.html', 'appointment/default_thank_you.html')
     return render(request, thank_you_template, context=context)
+
+
+def cancel_appointment(request, token):
+    appointment = get_appointment_from_cancellation_token(token)
+    if not appointment:
+        context = get_generic_context_with_extra(
+            request, {'error_message': _('This cancellation link is invalid.')}, admin=False)
+        template = get_custom_template('404_not_found.html', 'error_pages/404_not_found.html')
+        return render(request, template, status=404, context=context)
+
+    appointment_start = appointment.get_start_time()
+    if timezone.is_naive(appointment_start):
+        appointment_start = timezone.make_aware(appointment_start)
+    cancellation_allowed = appointment_start - timezone.now() >= timedelta(hours=24)
+
+    if request.method == 'POST' and cancellation_allowed:
+        appointment_request = appointment.appointment_request
+        appointment.delete()
+        appointment_request.delete()
+        context = get_generic_context_with_extra(
+            request, {'appointment': appointment, 'cancellation_success': True}, admin=False)
+        template = get_custom_template('cancel_appointment.html', 'appointment/cancel_appointment.html')
+        return render(request, template, context=context)
+
+    error_message = None if cancellation_allowed else _(
+        'This appointment cannot be cancelled less than 24 hours before its start time.')
+    context = get_generic_context_with_extra(
+        request, {'appointment': appointment, 'cancellation_allowed': cancellation_allowed,
+                  'error_message': error_message}, admin=False)
+    template = get_custom_template('cancel_appointment.html', 'appointment/cancel_appointment.html')
+    return render(request, template, context=context, status=400 if error_message else 200)
 
 
 def set_passwd(request, uidb64, token):
